@@ -5,13 +5,14 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
 const message = "Hello, World!!!"
-const port = ":8080"
+const port = ":80"
 
 var upgrader = websocket.Upgrader{ //an upgrader from TCP to WebSocket
 	ReadBufferSize:  1024,
@@ -31,7 +32,6 @@ func ServerImp(a *http.Server) { //a server behaviour implementation
 		if error_code != nil {
 			log.Println("[ServerReadMSG]The world won't be greeted right now due to " + error_code.Error())
 		}
-		log.Println("Got a message: ", new_message)
 		error_code = connection.WriteMessage(message_type, new_message) //sending back the message from a 'client'
 		if error_code != nil {
 			log.Println("[ServerWriteMSG]The world won't be greeted right now due to " + error_code.Error())
@@ -39,10 +39,15 @@ func ServerImp(a *http.Server) { //a server behaviour implementation
 
 	})
 
-	log.Println("['Server' has started]")
 	error_code := a.ListenAndServe()
 	if error_code != nil {
-		log.Println("[ServerListen]The world won't be greeted right now due to " + error_code.Error())
+		log.Println("[ServerListen]Server closed")
+	}
+}
+func ServerTwoImp(a *http.Server) { //a server behaviour implementation
+	error_code := a.ListenAndServe()
+	if error_code != nil {
+		log.Println("[ServerListen]Server closed")
 	}
 }
 
@@ -56,11 +61,10 @@ func main() {
 	go ServerImp(srv) //starting a 'server' as a separate GoRoutine
 	//---------------------|A client behaviour implementation[start]|---------------------//
 	u := url.URL{
-		Scheme: "ws://",
+		Scheme: "ws",
 		Host:   "localhost" + port,
 		Path:   "/",
 	}
-	log.Println("[A 'client' is set up]")
 	connection, _, error_code := websocket.DefaultDialer.Dial(u.String(), nil)
 	if error_code != nil { //if error - error message pops up
 		log.Println("[WebsocketDial]The world won't be greeted right now due to " + error_code.Error())
@@ -70,15 +74,19 @@ func main() {
 		log.Println("[WebsocketWrite]The world won't be greeted right now due to " + error_code.Error())
 	}
 	_, new_message, error_code := connection.ReadMessage() //recieved a response from a 'server', (got a *pong*)
-	log.Println(new_message)
+	log.Printf("%s", new_message)
 	connection.Close() //closing the connection
 	srv.Shutdown(context.TODO())
 	//---------------------|A client behaviour implementation[finish]|---------------------//
 	//printing 'Hello, World!!!' with Gin
 	gin_router := gin.Default()      //made a default Gin router
 	gin_router.GET("/", ContextDesc) //trying to GET an empty resource from localhost with the 'Hello, World!!!' status message
-	error_code = gin_router.Run()    //starting the Gin server
-	if error_code != nil {           //if error - error message pops up
-		log.Println("[GinRun]The world won't be greeted right now due to " + error_code.Error())
+	srv_two := &http.Server{
+		Addr:    "localhost" + port,
+		Handler: gin_router,
 	}
+	go ServerTwoImp(srv_two)
+	duration, _ := time.ParseDuration("60s")
+	time.Sleep(duration)
+	srv_two.Shutdown(context.TODO())
 }
