@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"net/url"
@@ -20,26 +21,26 @@ var upgrader = websocket.Upgrader{ //an upgrader from TCP to WebSocket
 func ContextDesc(context *gin.Context) { //a function that describes the 'Hello, World!!!' context with OK status-code
 	context.String(http.StatusOK, message)
 }
-func ServerImp() { //a server behaviour implementation
+func ServerImp(a *http.Server) { //a server behaviour implementation
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		connection, error_code := upgrader.Upgrade(w, r, nil) //upgrading a connection to a WebSocket one
 		if error_code != nil {
 			log.Println("[ServerImpUpgrade]The world won't be greeted right now due to " + error_code.Error())
 		}
-		for {
-			message_type, message, error_code := connection.ReadMessage() //trying to read an incoming message
-			if error_code != nil {
-				log.Println("[ServerReadMSG]The world won't be greeted right now due to " + error_code.Error())
-			}
-			log.Println("Got a message: ", message)
-			error_code = connection.WriteMessage(message_type, message) //sending back the message from a 'client'
-			if error_code != nil {
-				log.Println("[ServerWriteMSG]The world won't be greeted right now due to " + error_code.Error())
-			}
+		message_type, new_message, error_code := connection.ReadMessage() //trying to read an incoming message
+		if error_code != nil {
+			log.Println("[ServerReadMSG]The world won't be greeted right now due to " + error_code.Error())
 		}
+		log.Println("Got a message: ", new_message)
+		error_code = connection.WriteMessage(message_type, new_message) //sending back the message from a 'client'
+		if error_code != nil {
+			log.Println("[ServerWriteMSG]The world won't be greeted right now due to " + error_code.Error())
+		}
+
 	})
-	log.Println("[Server has started]")
-	error_code := http.ListenAndServe("localhost"+port, nil)
+
+	log.Println("['Server' has started]")
+	error_code := a.ListenAndServe()
 	if error_code != nil {
 		log.Println("[ServerListen]The world won't be greeted right now due to " + error_code.Error())
 	}
@@ -49,7 +50,10 @@ func main() {
 	//printing 'Hello, World!!!' without libs
 	log.Println(message)
 	//printing 'Hello, World!!!' with websocket a-la ping-pong
-	go ServerImp() //starting a 'server' as a separate GoRoutine
+	srv := &http.Server{
+		Addr: "localhost" + port,
+	}
+	go ServerImp(srv) //starting a 'server' as a separate GoRoutine
 	//---------------------|A client behaviour implementation[start]|---------------------//
 	u := url.URL{
 		Scheme: "ws://",
@@ -68,6 +72,7 @@ func main() {
 	_, new_message, error_code := connection.ReadMessage() //recieved a response from a 'server', (got a *pong*)
 	log.Println(new_message)
 	connection.Close() //closing the connection
+	srv.Shutdown(context.TODO())
 	//---------------------|A client behaviour implementation[finish]|---------------------//
 	//printing 'Hello, World!!!' with Gin
 	gin_router := gin.Default()      //made a default Gin router
