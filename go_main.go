@@ -22,19 +22,20 @@ func ContextDesc(context *gin.Context) { //a function that describes the 'Hello,
 }
 func ServerImp() { //a server behaviour implementation
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		u := websocket.Upgrader{}
-		connection, error_code := u.Upgrade(w, r, nil) //upgrading a connection to a WebSocket one
+		connection, error_code := upgrader.Upgrade(w, r, nil) //upgrading a connection to a WebSocket one
 		if error_code != nil {
 			log.Println("[ServerImpUpgrade]The world won't be greeted right now due to " + error_code.Error())
 		}
-		message_type, message, error_code := connection.ReadMessage() //trying to read an incoming message
-		if error_code != nil {
-			log.Println("[ServerReadMSG]The world won't be greeted right now due to " + error_code.Error())
-		}
-		log.Println("Got a message: ", message)
-		error_code = connection.WriteMessage(message_type, message) //sending back the message from a 'client'
-		if error_code != nil {
-			log.Println("[ServerWriteMSG]The world won't be greeted right now due to " + error_code.Error())
+		for {
+			message_type, message, error_code := connection.ReadMessage() //trying to read an incoming message
+			if error_code != nil {
+				log.Println("[ServerReadMSG]The world won't be greeted right now due to " + error_code.Error())
+			}
+			log.Println("Got a message: ", message)
+			error_code = connection.WriteMessage(message_type, message) //sending back the message from a 'client'
+			if error_code != nil {
+				log.Println("[ServerWriteMSG]The world won't be greeted right now due to " + error_code.Error())
+			}
 		}
 	})
 	log.Println("[Server has started]")
@@ -48,15 +49,14 @@ func main() {
 	//printing 'Hello, World!!!' without libs
 	log.Println(message)
 	//printing 'Hello, World!!!' with websocket a-la ping-pong
-	//here goes the new stuff
 	go ServerImp() //starting a 'server' as a separate GoRoutine
 	//---------------------|A client behaviour implementation[start]|---------------------//
-	log.Println("A ping-pong 'client' is being set up...")
 	u := url.URL{
 		Scheme: "ws://",
 		Host:   "localhost" + port,
 		Path:   "/",
 	}
+	log.Println("[A 'client' is set up]")
 	connection, _, error_code := websocket.DefaultDialer.Dial(u.String(), nil)
 	if error_code != nil { //if error - error message pops up
 		log.Println("[WebsocketDial]The world won't be greeted right now due to " + error_code.Error())
